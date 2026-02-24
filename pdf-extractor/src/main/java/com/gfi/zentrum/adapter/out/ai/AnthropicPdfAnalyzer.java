@@ -1,10 +1,15 @@
 package com.gfi.zentrum.adapter.out.ai;
 
+import com.gfi.zentrum.config.AnthropicOverrideHolder;
 import com.gfi.zentrum.domain.model.Beruf;
 import com.gfi.zentrum.domain.port.out.AiPdfAnalyzerPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.anthropic.AnthropicChatModel;
+import org.springframework.ai.anthropic.AnthropicChatOptions;
+import org.springframework.ai.anthropic.api.AnthropicApi;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 
@@ -45,10 +50,16 @@ public class AnthropicPdfAnalyzer implements AiPdfAnalyzerPort {
             - Return the result as a JSON array of Beruf objects
             """;
 
-    private final ChatClient chatClient;
+    private final ChatClient defaultChatClient;
+
+    @Value("${spring.ai.anthropic.chat.options.model:claude-sonnet-4-5-20250929}")
+    private String model;
+
+    @Value("${spring.ai.anthropic.chat.options.max-tokens:8192}")
+    private int maxTokens;
 
     public AnthropicPdfAnalyzer(ChatClient.Builder chatClientBuilder) {
-        this.chatClient = chatClientBuilder
+        this.defaultChatClient = chatClientBuilder
                 .defaultSystem(SYSTEM_PROMPT)
                 .build();
     }
@@ -57,12 +68,40 @@ public class AnthropicPdfAnalyzer implements AiPdfAnalyzerPort {
     public List<Beruf> analyze(String pdfText) {
         log.info("Analyzing PDF text with AI ({} characters)", pdfText.length());
 
-        List<Beruf> berufe = chatClient.prompt()
+        ChatClient client = resolveClient();
+        List<Beruf> berufe = client.prompt()
                 .user(pdfText)
                 .call()
                 .entity(new ParameterizedTypeReference<>() {});
 
         log.info("AI extracted {} Berufe", berufe.size());
         return berufe;
+    }
+
+    private ChatClient resolveClient() {
+        String overrideKey = AnthropicOverrideHolder.getApiKey();
+        if (overrideKey == null) {
+            return defaultChatClient;
+        }
+
+        log.debug("Using per-request Anthropic API key override");
+        String baseUrl = AnthropicOverrideHolder.getBaseUrl();
+        if (baseUrl == null) {
+            baseUrl = "https://api.anthropic.com/";
+        }
+
+        var api = new AnthropicApi(baseUrl, overrideKey);
+        var options = AnthropicChatOptions.builder()
+                .model(model)
+                .maxTokens(maxTokens)
+                .build();
+        var chatModel = AnthropicChatModel.builder()
+                .anthropicApi(api)
+                .defaultOptions(options)
+                .build();
+
+        return ChatClient.builder(chatModel)
+                .defaultSystem(SYSTEM_PROMPT)
+                .build();
     }
 }
