@@ -2,10 +2,7 @@ package com.gfi.zentrum.application.service;
 
 import com.gfi.zentrum.domain.model.*;
 import com.gfi.zentrum.domain.port.in.*;
-import com.gfi.zentrum.domain.port.out.AiPdfAnalyzerPort;
-import com.gfi.zentrum.domain.port.out.ExtractionRepository;
-import com.gfi.zentrum.domain.port.out.PdfParserPort;
-import com.gfi.zentrum.domain.port.out.PdfTextExtractorPort;
+import com.gfi.zentrum.domain.port.out.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -16,7 +13,7 @@ import java.util.List;
 
 @Service
 public class ExtractionService implements ExtractPdfUseCase, GetExtractionUseCase,
-        ListExtractionsUseCase, DeleteExtractionUseCase {
+        ListExtractionsUseCase, DeleteExtractionUseCase, VerifyExtractionUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(ExtractionService.class);
 
@@ -24,15 +21,18 @@ public class ExtractionService implements ExtractPdfUseCase, GetExtractionUseCas
     private final AiPdfAnalyzerPort aiAnalyzer;
     private final PdfParserPort fallbackParser;
     private final ExtractionRepository repository;
+    private final McpVerificationPort mcpVerifier;
 
     public ExtractionService(PdfTextExtractorPort textExtractor,
                              AiPdfAnalyzerPort aiAnalyzer,
                              PdfParserPort fallbackParser,
-                             ExtractionRepository repository) {
+                             ExtractionRepository repository,
+                             McpVerificationPort mcpVerifier) {
         this.textExtractor = textExtractor;
         this.aiAnalyzer = aiAnalyzer;
         this.fallbackParser = fallbackParser;
         this.repository = repository;
+        this.mcpVerifier = mcpVerifier;
     }
 
     @Override
@@ -46,13 +46,27 @@ public class ExtractionService implements ExtractPdfUseCase, GetExtractionUseCas
             berufe = fallbackParser.parse(
                     new java.io.ByteArrayInputStream(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         }
+
+        VerificationResult verification = runVerification(berufe);
+
         ExtractionResult result = new ExtractionResult(
                 ExtractionId.generate(),
                 fileName,
                 Instant.now(),
-                berufe
+                berufe,
+                verification
         );
         return repository.save(result);
+    }
+
+    @Override
+    public ExtractionResult verify(ExtractionId id) {
+        ExtractionResult existing = repository.findById(id)
+                .orElseThrow(() -> new ExtractionNotFoundException(id));
+
+        VerificationResult verification = runVerification(existing.berufe());
+        ExtractionResult updated = existing.withVerification(verification);
+        return repository.save(updated);
     }
 
     @Override
@@ -71,5 +85,14 @@ public class ExtractionService implements ExtractPdfUseCase, GetExtractionUseCas
         repository.findById(id)
                 .orElseThrow(() -> new ExtractionNotFoundException(id));
         repository.deleteById(id);
+    }
+
+    private VerificationResult runVerification(List<Beruf> berufe) {
+        try {
+            return mcpVerifier.verify(berufe);
+        } catch (Exception e) {
+            log.warn("MCP verification unavailable: {}", e.getMessage());
+            return null;
+        }
     }
 }

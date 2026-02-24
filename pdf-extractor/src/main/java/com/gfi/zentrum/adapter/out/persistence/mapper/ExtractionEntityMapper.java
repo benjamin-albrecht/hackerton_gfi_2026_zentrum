@@ -22,7 +22,8 @@ public class ExtractionEntityMapper {
                 result.id().toString(),
                 result.sourceFileName(),
                 result.extractedAt().toString(),
-                berufe
+                berufe,
+                toVerificationEntity(result.verification())
         );
     }
 
@@ -34,8 +35,37 @@ public class ExtractionEntityMapper {
                 ExtractionId.of(entity.id()),
                 entity.sourceFileName(),
                 Instant.parse(entity.extractedAt()),
-                berufe
+                berufe,
+                toVerificationDomain(entity.verification())
         );
+    }
+
+    private VerificationEntity toVerificationEntity(VerificationResult verification) {
+        if (verification == null) {
+            return null;
+        }
+        List<VerificationIssueEntity> issues = verification.issues().stream()
+                .map(i -> new VerificationIssueEntity(
+                        i.severity().name(),
+                        i.field(),
+                        i.message()
+                ))
+                .toList();
+        return new VerificationEntity(verification.valid(), issues, verification.verifiedAt().toString());
+    }
+
+    private VerificationResult toVerificationDomain(VerificationEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        List<VerificationIssue> issues = entity.issues().stream()
+                .map(i -> new VerificationIssue(
+                        Severity.valueOf(i.severity()),
+                        i.field(),
+                        i.message()
+                ))
+                .toList();
+        return new VerificationResult(entity.valid(), issues, Instant.parse(entity.verifiedAt()));
     }
 
     private BerufEntity toBerufEntity(Beruf beruf) {

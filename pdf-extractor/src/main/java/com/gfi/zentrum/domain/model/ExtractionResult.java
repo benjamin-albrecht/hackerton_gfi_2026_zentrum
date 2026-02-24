@@ -7,6 +7,15 @@ public record ExtractionResult(
         ExtractionId id,
         String sourceFileName,
         Instant extractedAt,
-        List<Beruf> berufe
+        List<Beruf> berufe,
+        VerificationResult verification
 ) {
+
+    public ExtractionResult(ExtractionId id, String sourceFileName, Instant extractedAt, List<Beruf> berufe) {
+        this(id, sourceFileName, extractedAt, berufe, null);
+    }
+
+    public ExtractionResult withVerification(VerificationResult verification) {
+        return new ExtractionResult(id, sourceFileName, extractedAt, berufe, verification);
+    }
 }

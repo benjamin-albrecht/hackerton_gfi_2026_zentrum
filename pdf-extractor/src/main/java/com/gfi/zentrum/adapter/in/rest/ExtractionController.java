@@ -24,17 +24,20 @@ public class ExtractionController {
     private final GetExtractionUseCase getExtractionUseCase;
     private final ListExtractionsUseCase listExtractionsUseCase;
     private final DeleteExtractionUseCase deleteExtractionUseCase;
+    private final VerifyExtractionUseCase verifyExtractionUseCase;
     private final ExtractionDtoMapper mapper;
 
     public ExtractionController(ExtractPdfUseCase extractPdfUseCase,
                                 GetExtractionUseCase getExtractionUseCase,
                                 ListExtractionsUseCase listExtractionsUseCase,
                                 DeleteExtractionUseCase deleteExtractionUseCase,
+                                VerifyExtractionUseCase verifyExtractionUseCase,
                                 ExtractionDtoMapper mapper) {
         this.extractPdfUseCase = extractPdfUseCase;
         this.getExtractionUseCase = getExtractionUseCase;
         this.listExtractionsUseCase = listExtractionsUseCase;
         this.deleteExtractionUseCase = deleteExtractionUseCase;
+        this.verifyExtractionUseCase = verifyExtractionUseCase;
         this.mapper = mapper;
     }
 
@@ -62,6 +65,13 @@ public class ExtractionController {
     @Operation(summary = "Get extraction details")
     public ExtractionDetailResponse getById(@PathVariable String id) {
         ExtractionResult result = getExtractionUseCase.getById(ExtractionId.of(id));
+        return mapper.toDetailResponse(result);
+    }
+
+    @PostMapping("/{id}/verify")
+    @Operation(summary = "Re-verify an extraction against the MCP server")
+    public ExtractionDetailResponse verify(@PathVariable String id) {
+        ExtractionResult result = verifyExtractionUseCase.verify(ExtractionId.of(id));
         return mapper.toDetailResponse(result);
     }
 

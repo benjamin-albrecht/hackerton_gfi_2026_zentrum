@@ -16,6 +16,15 @@ spring:
         options:
           model: claude-sonnet-4-5-20250929
           max-tokens: 8192
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        request-timeout: 30s
+        sse:
+          connections:
+            verification-server:
+              url: ${MCP_VERIFICATION_URL:http://localhost:3000}
 
 zentrum:
   storage:

@@ -7,6 +7,7 @@ public record ExtractionDetailResponse(
         String id,
         String sourceFileName,
         Instant extractedAt,
-        List<BerufResponse> berufe
+        List<BerufResponse> berufe,
+        VerificationResultResponse verification
 ) {
 }

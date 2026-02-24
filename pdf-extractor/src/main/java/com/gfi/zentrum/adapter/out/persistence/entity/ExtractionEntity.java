@@ -6,7 +6,8 @@ public record ExtractionEntity(
         String id,
         String sourceFileName,
         String extractedAt,
-        List<BerufEntity> berufe
+        List<BerufEntity> berufe,
+        VerificationEntity verification
 ) {
 
     public record BerufEntity(
@@ -35,6 +36,20 @@ public record ExtractionEntity(
             String uhrzeitVon,
             String uhrzeitBis,
             int dauer
+    ) {
+    }
+
+    public record VerificationEntity(
+            boolean valid,
+            List<VerificationIssueEntity> issues,
+            String verifiedAt
+    ) {
+    }
+
+    public record VerificationIssueEntity(
+            String severity,
+            String field,
+            String message
     ) {
     }
 }

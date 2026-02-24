@@ -35,7 +35,8 @@ public class ExtractionDtoMapper {
                 result.id().toString(),
                 result.sourceFileName(),
                 result.extractedAt(),
-                berufe
+                berufe,
+                toVerificationResponse(result.verification())
         );
     }
 
@@ -44,6 +45,20 @@ public class ExtractionDtoMapper {
                 .map(this::toBereichResponse)
                 .toList();
         return new BerufResponse(beruf.beschreibung(), beruf.berufNr(), bereiche);
+    }
+
+    public VerificationResultResponse toVerificationResponse(VerificationResult verification) {
+        if (verification == null) {
+            return null;
+        }
+        List<VerificationIssueResponse> issues = verification.issues().stream()
+                .map(i -> new VerificationIssueResponse(
+                        i.severity().name(),
+                        i.field(),
+                        i.message()
+                ))
+                .toList();
+        return new VerificationResultResponse(verification.valid(), issues, verification.verifiedAt());
     }
 
     private PruefungsBereichResponse toBereichResponse(PruefungsBereich bereich) {
