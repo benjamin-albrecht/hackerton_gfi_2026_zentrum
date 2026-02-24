@@ -1,0 +1,5 @@
+
+/pdf-extractor/target/
+/pdf-extractor/extracted_data.json
+/pdf-extractor/raw_text.txt
+/pdf-extractor/output.txt
