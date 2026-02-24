@@ -1,8 +1,10 @@
 package com.gfi.zentrum.application.service;
 
 import com.gfi.zentrum.domain.model.*;
+import com.gfi.zentrum.domain.port.out.AiPdfAnalyzerPort;
 import com.gfi.zentrum.domain.port.out.ExtractionRepository;
 import com.gfi.zentrum.domain.port.out.PdfParserPort;
+import com.gfi.zentrum.domain.port.out.PdfTextExtractorPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,20 +14,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ExtractionServiceTest {
 
     @Mock
-    private PdfParserPort parser;
+    private PdfTextExtractorPort textExtractor;
+
+    @Mock
+    private AiPdfAnalyzerPort aiAnalyzer;
+
+    @Mock
+    private PdfParserPort fallbackParser;
 
     @Mock
     private ExtractionRepository repository;
@@ -34,15 +41,17 @@ class ExtractionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ExtractionService(parser, repository);
+        service = new ExtractionService(textExtractor, aiAnalyzer, fallbackParser, repository);
     }
 
     @Test
-    void extractParsesPdfAndSaves() {
+    void extractUsesAiAnalyzer() {
+        String pdfText = "Ausbildungsberuf: Test Beruf (123)";
         List<Beruf> berufe = List.of(
                 new Beruf("Test Beruf", List.of(123), List.of())
         );
-        when(parser.parse(any(InputStream.class))).thenReturn(berufe);
+        when(textExtractor.extractText(any(InputStream.class))).thenReturn(pdfText);
+        when(aiAnalyzer.analyze(pdfText)).thenReturn(berufe);
         when(repository.save(any(ExtractionResult.class))).thenAnswer(inv -> inv.getArgument(0));
 
         InputStream stream = new ByteArrayInputStream(new byte[0]);
@@ -53,8 +62,31 @@ class ExtractionServiceTest {
         assertEquals(1, result.berufe().size());
         assertEquals("Test Beruf", result.berufe().getFirst().beschreibung());
 
-        verify(parser).parse(stream);
+        verify(textExtractor).extractText(stream);
+        verify(aiAnalyzer).analyze(pdfText);
+        verifyNoInteractions(fallbackParser);
         verify(repository).save(any(ExtractionResult.class));
+    }
+
+    @Test
+    void extractFallsBackToParserWhenAiFails() {
+        String pdfText = "Ausbildungsberuf: Test Beruf (123)";
+        List<Beruf> berufe = List.of(
+                new Beruf("Test Beruf", List.of(123), List.of())
+        );
+        when(textExtractor.extractText(any(InputStream.class))).thenReturn(pdfText);
+        when(aiAnalyzer.analyze(pdfText)).thenThrow(new RuntimeException("API unavailable"));
+        when(fallbackParser.parse(any(InputStream.class))).thenReturn(berufe);
+        when(repository.save(any(ExtractionResult.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InputStream stream = new ByteArrayInputStream(new byte[0]);
+        ExtractionResult result = service.extract(stream, "test.pdf");
+
+        assertNotNull(result.id());
+        assertEquals(1, result.berufe().size());
+
+        verify(aiAnalyzer).analyze(pdfText);
+        verify(fallbackParser).parse(any(InputStream.class));
     }
 
     @Test

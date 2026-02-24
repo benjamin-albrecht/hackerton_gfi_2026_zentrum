@@ -2,8 +2,12 @@ package com.gfi.zentrum.application.service;
 
 import com.gfi.zentrum.domain.model.*;
 import com.gfi.zentrum.domain.port.in.*;
+import com.gfi.zentrum.domain.port.out.AiPdfAnalyzerPort;
 import com.gfi.zentrum.domain.port.out.ExtractionRepository;
 import com.gfi.zentrum.domain.port.out.PdfParserPort;
+import com.gfi.zentrum.domain.port.out.PdfTextExtractorPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -14,17 +18,34 @@ import java.util.List;
 public class ExtractionService implements ExtractPdfUseCase, GetExtractionUseCase,
         ListExtractionsUseCase, DeleteExtractionUseCase {
 
-    private final PdfParserPort parser;
+    private static final Logger log = LoggerFactory.getLogger(ExtractionService.class);
+
+    private final PdfTextExtractorPort textExtractor;
+    private final AiPdfAnalyzerPort aiAnalyzer;
+    private final PdfParserPort fallbackParser;
     private final ExtractionRepository repository;
 
-    public ExtractionService(PdfParserPort parser, ExtractionRepository repository) {
-        this.parser = parser;
+    public ExtractionService(PdfTextExtractorPort textExtractor,
+                             AiPdfAnalyzerPort aiAnalyzer,
+                             PdfParserPort fallbackParser,
+                             ExtractionRepository repository) {
+        this.textExtractor = textExtractor;
+        this.aiAnalyzer = aiAnalyzer;
+        this.fallbackParser = fallbackParser;
         this.repository = repository;
     }
 
     @Override
     public ExtractionResult extract(InputStream pdfStream, String fileName) {
-        List<Beruf> berufe = parser.parse(pdfStream);
+        String text = textExtractor.extractText(pdfStream);
+        List<Beruf> berufe;
+        try {
+            berufe = aiAnalyzer.analyze(text);
+        } catch (Exception e) {
+            log.warn("AI analysis failed, falling back to regex parser: {}", e.getMessage());
+            berufe = fallbackParser.parse(
+                    new java.io.ByteArrayInputStream(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
         ExtractionResult result = new ExtractionResult(
                 ExtractionId.generate(),
                 fileName,
