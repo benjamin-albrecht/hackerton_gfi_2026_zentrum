@@ -11,6 +11,7 @@ spring:
   ai:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
+      base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com/}
       chat:
         options:
           model: claude-sonnet-4-5-20250929
